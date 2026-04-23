@@ -23,7 +23,7 @@ def on_message(client, userdata, message):
 
 broker="broker.mqttdashboard.com"
 port=1883
-client1= paho.Client("GIT-HUBC")
+client1= paho.Client("yosoyclientequeescucha2")
 client1.on_message = on_message
 
 
@@ -55,7 +55,7 @@ stt_button.js_on_event("button_click", CustomJS(code="""
             }
         }
         if ( value != "") {
-            document.dispatchEvent(new CustomEvent("GET_TEXT", {detail: value}));
+            document.dispatchEvent(new CustomEvent("yosoyclientequeescucha2", {detail: value}));
         }
     }
     recognition.start();
@@ -63,18 +63,18 @@ stt_button.js_on_event("button_click", CustomJS(code="""
 
 result = streamlit_bokeh_events(
     stt_button,
-    events="GET_TEXT",
+    events="yosoyclientequeescucha2",
     key="listen",
     refresh_on_update=False,
     override_height=75,
     debounce_time=0)
 
 if result:
-    if "GET_TEXT" in result:
-        st.write(result.get("GET_TEXT"))
+    if "yosoyclientequeescucha2" in result:
+        st.write(result.get("yosoyclientequeescucha2"))
         client1.on_publish = on_publish                            
         client1.connect(broker,port)  
-        message =json.dumps({"Act1":result.get("GET_TEXT").strip()})
+        message =json.dumps({"Act1":result.get("yosoyclientequeescucha2").strip()})
         ret= client1.publish("voice_ctrl", message)
 
     
