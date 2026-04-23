@@ -69,7 +69,7 @@ client_id = "samuel_voice_hub_2026"
 client1 = paho.Client(client_id)
 
 st.markdown('<div class="main-card">', unsafe_allow_html=True)
-st.title("SAMUEL'S CORE")
+st.title("Control por voz casa inteligente")
 st.subheader("Voice Command Interface")
 
 # Imagen o Icono central
