@@ -8,99 +8,127 @@ import time
 import paho.mqtt.client as paho
 import json
 
-# --- CONFIGURACIÓN INICIAL ---
-st.set_page_config(page_title="Casa Inteligente - Voz", layout="centered")
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="Samuel's Smart Hub", layout="centered")
 
-# Estilo para que se vea moderno
+# --- ESTILO "CYBER-PURPLE" GLASSMORPHISM ---
 st.markdown("""
     <style>
-    .stApp { background-color: #121212; color: white; }
-    .stHeader { color: #00ffcc; }
+    /* Fondo con gradiente animado en tonos morados */
+    .stApp {
+        background: linear-gradient(-45deg, #0f0c29, #302b63, #5b247a, #1e0533);
+        background-size: 400% 400%;
+        animation: gradient 10s ease infinite;
+        color: white;
+    }
+    @keyframes gradient {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+
+    /* Tarjeta central traslúcida */
+    .main-card {
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(15px);
+        border-radius: 25px;
+        padding: 40px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Botón con brillo neón morado */
+    .bk-btn-success {
+        background-color: #bc13fe !important;
+        border-color: #bc13fe !important;
+        color: white !important;
+        border-radius: 50px !important;
+        font-weight: bold !important;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        box-shadow: 0 0 20px rgba(188, 19, 254, 0.6) !important;
+        transition: 0.3s !important;
+    }
+    
+    /* Títulos con degradado neón */
+    h1, h3 {
+        text-align: center;
+        background: -webkit-linear-gradient(#bc13fe, #ff00de);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-family: 'Inter', sans-serif;
+        font-weight: 800;
+    }
     </style>
     """, unsafe_allow_html=True)
 
 # --- LÓGICA MQTT ---
 broker = "broker.mqttdashboard.com"
 port = 1883
-# El ID del cliente debe ser único para que no se desconecte
-client_id = "user_interactivo_2026_voice" 
+client_id = "samuel_voice_hub_2026"
 client1 = paho.Client(client_id)
 
-def on_publish(client, userdata, result):
-    print("Dato publicado con éxito")
+st.markdown('<div class="main-card">', unsafe_allow_html=True)
+st.title("SAMUEL'S CORE")
+st.subheader("Voice Command Interface")
 
-st.title("CASA INTELIGENTE 🏠")
-st.subheader("Control por Voz")
+# Imagen o Icono central
+col1, col2, col3 = st.columns([1,2,1])
+with col2:
+    try:
+        image = Image.open('ger.png')
+        st.image(image, use_container_width=True)
+    except:
+        st.markdown("<h2 style='text-align:center; font-size: 60px;'>🧬</h2>", unsafe_allow_html=True)
 
-# Manejo de la imagen (evita error si no existe)
-try:
-    image = Image.open('ger.png')
-    st.image(image, width=200)
-except:
-    st.info("💡 (Aquí iría tu logo 'ger.png')")
+st.write("---")
+st.markdown("<p style='text-align:center; opacity: 0.8;'>SISTEMA LISTO. ESPERANDO FRECUENCIA DE VOZ.</p>", unsafe_allow_html=True)
 
-st.write("Haz clic en el botón y di un comando (ej: 'prender', 'apagar')")
-
-# --- BOTÓN DE VOZ (BOKEH) ---
-stt_button = Button(label="🎙️ HABLAR AHORA", width=200, button_type="success")
-
-# Nombre del evento que conectará JS con Streamlit
-EVENT_NAME = "event_voz"
+# --- BOTÓN DE VOZ ---
+EVENT_NAME = "samuel_voice_event"
+stt_button = Button(label="🎙️ INICIAR ESCUCHA", width=250, button_type="success")
 
 stt_button.js_on_event("button_click", CustomJS(code=f"""
     var recognition = new webkitSpeechRecognition();
     recognition.continuous = false;
-    recognition.interimResults = false;
     recognition.lang = 'es-ES';
- 
     recognition.onresult = function (e) {{
-        var value = "";
-        for (var i = e.resultIndex; i < e.results.length; ++i) {{
-            if (e.results[i].isFinal) {{
-                value += e.results[i][0].transcript;
-            }}
-        }}
-        if (value != "") {{
-            document.dispatchEvent(new CustomEvent("{EVENT_NAME}", {{detail: value}}));
-        }}
+        var value = e.results[0][0].transcript;
+        document.dispatchEvent(new CustomEvent("{EVENT_NAME}", {{detail: value}}));
     }}
     recognition.start();
     """))
 
-# Capturar el evento de voz
 result = streamlit_bokeh_events(
     stt_button,
     events=EVENT_NAME,
     key="listen",
     refresh_on_update=False,
-    override_height=75,
+    override_height=80,
     debounce_time=0)
 
-# --- PROCESAMIENTO Y ENVÍO ---
-if result and EVENT_NAME in result:
-    texto_escuchado = result.get(EVENT_NAME).strip()
-    st.write(f"**Escuché:** _{texto_escuchado}_")
-    
-    # Lógica de filtrado simple
-    accion = "DESCONOCIDO"
-    if "prender" in texto_escuchado.lower() or "on" in texto_escuchado.lower():
-        accion = "ON"
-    elif "apagar" in texto_escuchado.lower() or "off" in texto_escuchado.lower():
-        accion = "OFF"
-    else:
-        accion = texto_escuchado
+st.markdown('</div>', unsafe_allow_html=True)
 
-    # Enviar a MQTT
+# --- PROCESAMIENTO ---
+if result and EVENT_NAME in result:
+    comando = result.get(EVENT_NAME).strip()
+    
+    st.markdown(f"""
+        <div style="background: rgba(188, 19, 254, 0.15); padding: 20px; border-radius: 15px; border-left: 5px solid #bc13fe; margin-top: 20px;">
+            <b style="color: #bc13fe;">Voz detectada:</b> "{comando}"
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Lógica de envío
+    accion = "ON" if any(word in comando.lower() for word in ["prender", "encender", "activar"]) else "OFF" if any(word in comando.lower() for word in ["apagar", "desactivar"]) else comando
+    
     try:
-        client1.on_publish = on_publish
         client1.connect(broker, port)
-        # Enviamos un JSON que tu Wokwi pueda leer fácilmente
         payload = json.dumps({"Act1": accion})
         client1.publish("control_casa", payload)
-        st.success(f"Comando '{accion}' enviado a Wokwi")
-    except Exception as e:
-        st.error(f"Error de conexión: {e}")
+        st.toast(f"Señal {accion} transmitida", icon="💜")
+    except:
+        st.error("Error en el enlace MQTT")
 
-# Crear carpeta temporal si es necesario
 if not os.path.exists("temp"):
     os.makedirs("temp")
