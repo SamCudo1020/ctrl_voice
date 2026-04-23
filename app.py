@@ -1,97 +1,106 @@
-import paho.mqtt.client as paho
-import time
+import os
 import streamlit as st
+from bokeh.models.widgets import Button
+from bokeh.models import CustomJS
+from streamlit_bokeh_events import streamlit_bokeh_events
+from PIL import Image
+import time
+import paho.mqtt.client as paho
 import json
-import platform
 
-# --- CONFIGURACIÓN DE ESTILO PARA SAMUEL ---
-st.set_page_config(page_title="MQTT Terminal - Samuel", layout="centered")
+# --- CONFIGURACIÓN INICIAL ---
+st.set_page_config(page_title="Casa Inteligente - Voz", layout="centered")
 
-# Estilo CSS con estética de estación de trabajo / Motor de juegos
+# Estilo para que se vea moderno
 st.markdown("""
     <style>
-    .stApp {
-        background-color: #0e1117;
-        color: #e0e0e0;
-    }
-    /* Estilo de botones tipo 'Action' */
-    .stButton>button {
-        background-color: #262730;
-        color: #ff4b4b; /* Un rojo/naranja tipo alerta/acción */
-        border: 1px solid #464646;
-        border-radius: 4px;
-        font-family: 'Courier New', Courier, monospace;
-        width: 100%;
-        transition: 0.2s;
-    }
-    .stButton>button:hover {
-        border-color: #ff4b4b;
-        color: white;
-        background-color: #ff4b4b;
-        box-shadow: 0px 0px 10px rgba(255, 75, 75, 0.4);
-    }
-    /* Títulos con fuente monoespaciada */
-    h1, h2, h3 {
-        color: #ffffff !important;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        text-transform: uppercase;
-        letter-spacing: 2px;
-    }
-    /* Estilo para el slider */
-    .stSlider label {
-        color: #ff4b4b !important;
-    }
+    .stApp { background-color: #121212; color: white; }
+    .stHeader { color: #00ffcc; }
     </style>
     """, unsafe_allow_html=True)
 
-# Información de entorno
-st.caption(f"ENV: Python {platform.python_version()} | DEVICE: {platform.system()}")
-
-values = 0.0
-act1="OFF"
-
 # --- LÓGICA MQTT ---
-def on_publish(client,userdata,result):
-    pass
+broker = "broker.mqttdashboard.com"
+port = 1883
+# El ID del cliente debe ser único para que no se desconecte
+client_id = "user_interactivo_2026_voice" 
+client1 = paho.Client(client_id)
 
-broker="157.230.214.127"
-port=1883
+def on_publish(client, userdata, result):
+    print("Dato publicado con éxito")
 
-st.title("📟 Hardware Control")
-st.markdown("---")
+st.title("CASA INTELIGENTE 🏠")
+st.subheader("Control por Voz")
 
-# Layout de consola
-col1, col2 = st.columns(2)
+# Manejo de la imagen (evita error si no existe)
+try:
+    image = Image.open('ger.png')
+    st.image(image, width=200)
+except:
+    st.info("💡 (Aquí iría tu logo 'ger.png')")
 
-with col1:
-    if st.button('SET_STATE: ON'):
-        act1="ON"
-        client1= paho.Client("GIT-HUB")                           
-        client1.on_publish = on_publish                          
-        client1.connect(broker,port)  
-        message = json.dumps({"Act1":act1})
-        client1.publish("cmqtt_s", message)
-        st.info("Log: Command 'ON' sent to broker.")
+st.write("Haz clic en el botón y di un comando (ej: 'prender', 'apagar')")
 
-with col2:
-    if st.button('SET_STATE: OFF'):
-        act1="OFF"
-        client1= paho.Client("GIT-HUB")                           
-        client1.on_publish = on_publish                          
-        client1.connect(broker,port)  
-        message = json.dumps({"Act1":act1})
-        client1.publish("cmqtt_s", message)
-        st.warning("Log: Command 'OFF' sent to broker.")
+# --- BOTÓN DE VOZ (BOKEH) ---
+stt_button = Button(label="🎙️ HABLAR AHORA", width=200, button_type="success")
 
-st.write("")
-st.markdown("### Analog Input Simulation")
+# Nombre del evento que conectará JS con Streamlit
+EVENT_NAME = "event_voz"
 
-values = st.slider('Input Value (0-100)', 0.0, 100.0, 0.0)
+stt_button.js_on_event("button_click", CustomJS(code=f"""
+    var recognition = new webkitSpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'es-ES';
+ 
+    recognition.onresult = function (e) {{
+        var value = "";
+        for (var i = e.resultIndex; i < e.results.length; ++i) {{
+            if (e.results[i].isFinal) {{
+                value += e.results[i][0].transcript;
+            }}
+        }}
+        if (value != "") {{
+            document.dispatchEvent(new CustomEvent("{EVENT_NAME}", {{detail: value}}));
+        }}
+    }}
+    recognition.start();
+    """))
 
-if st.button('Push Data to Wokwi'):
-    client1= paho.Client("GIT-HUB")                           
-    client1.on_publish = on_publish                          
-    client1.connect(broker,port)   
-    message = json.dumps({"Analog": float(values)})
-    client1.publish("cmqtt_a", message)
-    st.success(f"Dato analógico {values} enviado.")
+# Capturar el evento de voz
+result = streamlit_bokeh_events(
+    stt_button,
+    events=EVENT_NAME,
+    key="listen",
+    refresh_on_update=False,
+    override_height=75,
+    debounce_time=0)
+
+# --- PROCESAMIENTO Y ENVÍO ---
+if result and EVENT_NAME in result:
+    texto_escuchado = result.get(EVENT_NAME).strip()
+    st.write(f"**Escuché:** _{texto_escuchado}_")
+    
+    # Lógica de filtrado simple
+    accion = "DESCONOCIDO"
+    if "prender" in texto_escuchado.lower() or "on" in texto_escuchado.lower():
+        accion = "ON"
+    elif "apagar" in texto_escuchado.lower() or "off" in texto_escuchado.lower():
+        accion = "OFF"
+    else:
+        accion = texto_escuchado
+
+    # Enviar a MQTT
+    try:
+        client1.on_publish = on_publish
+        client1.connect(broker, port)
+        # Enviamos un JSON que tu Wokwi pueda leer fácilmente
+        payload = json.dumps({"Act1": accion})
+        client1.publish("control_casa", payload)
+        st.success(f"Comando '{accion}' enviado a Wokwi")
+    except Exception as e:
+        st.error(f"Error de conexión: {e}")
+
+# Crear carpeta temporal si es necesario
+if not os.path.exists("temp"):
+    os.makedirs("temp")
