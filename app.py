@@ -1,84 +1,97 @@
-import os
-import streamlit as st
-from bokeh.models.widgets import Button
-from bokeh.models import CustomJS
-from streamlit_bokeh_events import streamlit_bokeh_events
-from PIL import Image
-import time
-import glob
 import paho.mqtt.client as paho
+import time
+import streamlit as st
 import json
-from gtts import gTTS
-from googletrans import Translator
+import platform
 
-def on_publish(client,userdata,result):             #create function for callback
-    print("el dato ha sido publicado \n")
+# --- CONFIGURACIÓN DE ESTILO PARA SAMUEL ---
+st.set_page_config(page_title="MQTT Terminal - Samuel", layout="centered")
+
+# Estilo CSS con estética de estación de trabajo / Motor de juegos
+st.markdown("""
+    <style>
+    .stApp {
+        background-color: #0e1117;
+        color: #e0e0e0;
+    }
+    /* Estilo de botones tipo 'Action' */
+    .stButton>button {
+        background-color: #262730;
+        color: #ff4b4b; /* Un rojo/naranja tipo alerta/acción */
+        border: 1px solid #464646;
+        border-radius: 4px;
+        font-family: 'Courier New', Courier, monospace;
+        width: 100%;
+        transition: 0.2s;
+    }
+    .stButton>button:hover {
+        border-color: #ff4b4b;
+        color: white;
+        background-color: #ff4b4b;
+        box-shadow: 0px 0px 10px rgba(255, 75, 75, 0.4);
+    }
+    /* Títulos con fuente monoespaciada */
+    h1, h2, h3 {
+        color: #ffffff !important;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+    }
+    /* Estilo para el slider */
+    .stSlider label {
+        color: #ff4b4b !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Información de entorno
+st.caption(f"ENV: Python {platform.python_version()} | DEVICE: {platform.system()}")
+
+values = 0.0
+act1="OFF"
+
+# --- LÓGICA MQTT ---
+def on_publish(client,userdata,result):
     pass
 
-def on_message(client, userdata, message):
-    global message_received
-    time.sleep(2)
-    message_received=str(message.payload.decode("utf-8"))
-    st.write(message_received)
-
-broker="broker.mqttdashboard.com"
+broker="157.230.214.127"
 port=1883
-client1= paho.Client("yosoyclientequeescucha2")
-client1.on_message = on_message
 
+st.title("📟 Hardware Control")
+st.markdown("---")
 
+# Layout de consola
+col1, col2 = st.columns(2)
 
-st.title("CASA INTELIGENTE 🏠")
-st.subheader("CONTROL POR VOZ")
-
-image = Image.open('ger.png')
-
-st.image(image, width=200)
-
-
-
-
-st.write("Toca el Botón y habla ")
-
-stt_button = Button(label=" Inicio ", width=200)
-
-stt_button.js_on_event("button_click", CustomJS(code="""
-    var recognition = new webkitSpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
- 
-    recognition.onresult = function (e) {
-        var value = "";
-        for (var i = e.resultIndex; i < e.results.length; ++i) {
-            if (e.results[i].isFinal) {
-                value += e.results[i][0].transcript;
-            }
-        }
-        if ( value != "") {
-            document.dispatchEvent(new CustomEvent("yosoyclientequeescucha2", {detail: value}));
-        }
-    }
-    recognition.start();
-    """))
-
-result = streamlit_bokeh_events(
-    stt_button,
-    events="yosoyclientequeescucha2",
-    key="listen",
-    refresh_on_update=False,
-    override_height=75,
-    debounce_time=0)
-
-if result:
-    if "yosoyclientequeescucha2" in result:
-        st.write(result.get("yosoyclientequeescucha2"))
-        client1.on_publish = on_publish                            
+with col1:
+    if st.button('SET_STATE: ON'):
+        act1="ON"
+        client1= paho.Client("GIT-HUB")                           
+        client1.on_publish = on_publish                          
         client1.connect(broker,port)  
-        message =json.dumps({"Act1":result.get("yosoyclientequeescucha2").strip()})
-        ret= client1.publish("voice_ctrl", message)
+        message = json.dumps({"Act1":act1})
+        client1.publish("cmqtt_s", message)
+        st.info("Log: Command 'ON' sent to broker.")
 
-    
-    try:
-        os.mkdir("temp")
-    except:
-        pass
+with col2:
+    if st.button('SET_STATE: OFF'):
+        act1="OFF"
+        client1= paho.Client("GIT-HUB")                           
+        client1.on_publish = on_publish                          
+        client1.connect(broker,port)  
+        message = json.dumps({"Act1":act1})
+        client1.publish("cmqtt_s", message)
+        st.warning("Log: Command 'OFF' sent to broker.")
+
+st.write("")
+st.markdown("### Analog Input Simulation")
+
+values = st.slider('Input Value (0-100)', 0.0, 100.0, 0.0)
+
+if st.button('Push Data to Wokwi'):
+    client1= paho.Client("GIT-HUB")                           
+    client1.on_publish = on_publish                          
+    client1.connect(broker,port)   
+    message = json.dumps({"Analog": float(values)})
+    client1.publish("cmqtt_a", message)
+    st.success(f"Dato analógico {values} enviado.")
